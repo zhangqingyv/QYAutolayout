@@ -66,7 +66,7 @@
 
 - (void)setLayout1
 {
-    [self.view addFullContentView:self.containerView];
+    [self.containerView autoPinEdgesToSuperview];
     
     // View Dictionary
     NSDictionary *views = NSDictionaryOfVariableBindings(_blueLabel, _yellowLabel, _redLabel, _greenLabel);
@@ -93,7 +93,7 @@
 
 - (void)setLayout2
 {
-    [self.view addFullContentView:self.containerView];
+    [self.containerView autoPinEdgesToSuperview];
 
     // View Dictionary
     NSDictionary *views = NSDictionaryOfVariableBindings(_blueLabel, _yellowLabel, _redLabel, _greenLabel);

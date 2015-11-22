@@ -38,6 +38,23 @@ typedef NS_ENUM(NSInteger, QYAutoLayoutSizeType) {
 - (void)autoCenterInSuperview;
 
 /**
+ *  全屏加子view
+ *
+ *  @param contentView 子view
+ *
+ */
+- (void)autoPinEdgesToSuperview;
+
+/**
+ *  添加子view
+ *
+ *  @param contentView 子view
+ *  @param insets 相对父view上下左右空多少
+ *
+ */
+- (void)autoPinEdgesToSuperviewWithInsets:(UIEdgeInsets)insets;
+
+/**
  相对superView对齐，根据type
  **/
 - (void)autoAlignInSuperview:(QYAutoLayoutAlignType)alignType;
@@ -95,23 +112,6 @@ typedef NS_ENUM(NSInteger, QYAutoLayoutSizeType) {
  *  VFL 方式 和上一个的区别就是opts 也是数组
  */
 - (void)autoAddConstraintsWithVisualFormatArray:(NSArray *)formatArr optionsArray:(NSArray *)optsArray metrics:(NSDictionary *)metrics views:(NSDictionary *)views;
-
-/**
- *  全屏加子view
- *
- *  @param contentView 子view
- *
- */
-- (void)addFullContentView:(UIView *)contentView;
-
-/**
- *  添加子view
- *
- *  @param contentView 子view
- *  @param insets 相对父view上下左右空多少
- *
- */
-- (void)addContentView:(UIView *)contentView insets:(UIEdgeInsets)insets;
 
 @end
 

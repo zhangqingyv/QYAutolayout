@@ -23,6 +23,24 @@
     [self autoAlignInSuperview:QYAutoLayoutAlignCenterY];
 }
 
+- (void)autoPinEdgesToSuperview
+{
+    [self autoPinEdgesToSuperviewWithInsets:UIEdgeInsetsZero];
+}
+
+- (void)autoPinEdgesToSuperviewWithInsets:(UIEdgeInsets)insets
+{
+    UIView *superView = self.superview;
+    
+    NSDictionary *view = @{@"contentView":self};
+    NSDictionary *metrics = @{@"top": @(insets.top), @"left": @(insets.left), @"bottom": @(insets.bottom), @"right": @(insets.right)};
+    NSString *H01 = @"H:|-left-[contentView]-right-|";
+    NSString *V01 = @"V:|-top-[contentView]-bottom-|";
+    
+    [superView autoAddConstraintsWithVisualFormatArray:@[H01,V01] options:0 metrics:metrics views:view];
+}
+
+
 - (void)autoAlignInSuperview:(QYAutoLayoutAlignType)alignType
 {
     [self autoAlignInSuperview:alignType constant:.0];
@@ -37,7 +55,7 @@
 
 - (void)autoAlign:(QYAutoLayoutAlignType)alignType relatedView:(UIView *)relatedView constant:(CGFloat)constant
 {
-    UIView *superview = self.superview;
+    UIView *superview = [self qy_commonSuperviewWithView:relatedView];
     NSAssert(superview, @"View's superview must not be nil.\nView: %@", self);
     NSLayoutAttribute attribute = (NSLayoutAttribute)alignType;
     [superview addConstraint:[NSLayoutConstraint constraintWithItem:self attribute:attribute relatedBy:NSLayoutRelationEqual toItem:relatedView attribute:attribute multiplier:1.0f constant:constant]];
@@ -45,7 +63,7 @@
 
 - (void)autoAlign:(QYAutoLayoutAlignType)alignType relatedView:(UIView *)relatedView relatedAlign:(QYAutoLayoutAlignType)relatedAlign constant:(CGFloat)constant
 {
-    UIView *superview = self.superview;
+    UIView *superview = [self qy_commonSuperviewWithView:relatedView];
     NSAssert(superview, @"View's superview must not be nil.\nView: %@", self);
     NSLayoutAttribute attribute1 = (NSLayoutAttribute)alignType;
     NSLayoutAttribute attribute2 = (NSLayoutAttribute)relatedAlign;
@@ -61,24 +79,17 @@
 
 - (void)autoMatchSizeType:(QYAutoLayoutSizeType)sizeType1 relatedView:(UIView *)relatedView  sizeType2:(QYAutoLayoutSizeType)sizeType2 rate:(CGFloat)rate constant:(CGFloat)constant
 {
-    UIView *superview = self.superview;
+    UIView *superview = [self qy_commonSuperviewWithView:relatedView];
     NSAssert(superview, @"View's superview must not be nil.\nView: %@", self);
     [superview addConstraint:[NSLayoutConstraint constraintWithItem:self attribute:(NSLayoutAttribute)sizeType1 relatedBy:NSLayoutRelationEqual toItem:relatedView attribute:(NSLayoutAttribute)sizeType2 multiplier:rate constant:constant]];
 }
 
 - (void)clearAllConstraints
 {
-    NSMutableArray *constraintsToRemove = [NSMutableArray array];
-    [self.constraints enumerateObjectsUsingBlock:^(__kindof NSLayoutConstraint * _Nonnull constraint, NSUInteger idx, BOOL * _Nonnull stop) {
-        BOOL isImplicitConstraint = [NSStringFromClass([constraint class]) isEqualToString:@"NSContentSizeLayoutConstraint"];
-        if (isImplicitConstraint) {
-            [constraintsToRemove addObject:constraint];
-        }
-    }];
-    [self removeConstraints:constraintsToRemove];
+    [self autoRemoveConstraintsAffectingViewIncludingImplicitConstraints:NO];
     
     for (UIView *sub in [self subviews]) {
-        [sub clearAllConstraints];
+        [sub autoRemoveConstraintsAffectingViewIncludingImplicitConstraints:NO];
     }
 }
 
@@ -100,18 +111,69 @@
     }];
 }
 
-- (void)addFullContentView:(UIView *)contentView
+#pragma mark - Private Methods
+
+- (void)autoRemoveConstraintsAffectingViewIncludingImplicitConstraints:(BOOL)shouldRemoveImplicitConstraints
 {
-    [self addContentView:contentView insets:UIEdgeInsetsZero];
+    NSMutableArray *constraintsToRemove = [NSMutableArray new];
+    UIView *startView = self;
+    do {
+        for (NSLayoutConstraint *constraint in startView.constraints) {
+            BOOL isImplicitConstraint = [NSStringFromClass([constraint class]) isEqualToString:@"NSContentSizeLayoutConstraint"];
+            if (shouldRemoveImplicitConstraints || !isImplicitConstraint) {
+                if (constraint.firstItem == self || constraint.secondItem == self) {
+                    [constraintsToRemove addObject:constraint];
+                }
+            }
+        }
+        startView = startView.superview;
+    } while (startView);
+    [UIView autoRemoveConstraints:constraintsToRemove];
 }
 
-- (void)addContentView:(UIView *)contentView insets:(UIEdgeInsets)insets
++ (void)autoRemoveConstraints:(NSArray *)constraints
 {
-    NSDictionary *view = NSDictionaryOfVariableBindings(contentView);
-    NSDictionary *metrics = @{@"top": @(insets.top), @"left": @(insets.left), @"bottom": @(insets.bottom), @"right": @(insets.right)};
-    NSString *H01 = @"H:|-left-[contentView]-right-|";
-    NSString *V01 = @"V:|-top-[contentView]-bottom-|";
-    [self autoAddConstraintsWithVisualFormatArray:@[H01,V01] options:0 metrics:metrics views:view];
+    for (id object in constraints) {
+        if ([object isKindOfClass:[NSLayoutConstraint class]]) {
+            [self autoRemoveConstraint:((NSLayoutConstraint *)object)];
+        } else {
+            NSAssert(nil, @"All constraints to remove must be instances of NSLayoutConstraint.");
+        }
+    }
+}
+
++ (void)autoRemoveConstraint:(NSLayoutConstraint *)constraint
+{
+    if (constraint.secondItem) {
+        UIView *commonSuperview = [constraint.firstItem qy_commonSuperviewWithView:constraint.secondItem];
+        while (commonSuperview) {
+            if ([commonSuperview.constraints containsObject:constraint]) {
+                [commonSuperview removeConstraint:constraint];
+                return;
+            }
+            commonSuperview = commonSuperview.superview;
+        }
+    }
+    else {
+        [constraint.firstItem removeConstraint:constraint];
+        return;
+    }
+    NSAssert(nil, @"Failed to remove constraint: %@", constraint);
+}
+
+/// 返回 最小公共 superView
+- (UIView *)qy_commonSuperviewWithView:(UIView *)peerView
+{
+    UIView *commonSuperview = nil;
+    UIView *startView = self;
+    do {
+        if ([peerView isDescendantOfView:startView]) {
+            commonSuperview = startView;
+        }
+        startView = startView.superview;
+    } while (startView && !commonSuperview);
+    NSAssert(commonSuperview, @"Can't constrain two views that do not share a common superview. Make sure that both views have been added into the same view hierarchy.");
+    return commonSuperview;
 }
 
 @end
